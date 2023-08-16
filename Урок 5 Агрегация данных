@@ -1,0 +1,180 @@
+--5.1
+select
+  DISTINCT user_id
+from
+  user_actions
+order by
+  user_id;
+--5.2
+select
+  DISTINCT courier_id,
+  order_id
+from
+  courier_actions
+order by
+  courier_id,
+  order_id;
+--5.3
+  /*Агрегирующими функциями называют функции, которые обрабатывают определённый набор строк и возвращают одно обобщающее значение. 
+  */
+select
+  max(price) as max_price,
+  min(price) as min_price
+from
+  products;
+--5.4
+  /*
+  запрос со звёздочкой COUNT(*) возвращает количество вообще всех записей в таблице, 
+  а запрос с указанием столбца COUNT(column) — количество тех записей, где в заданном столбце значения не являются NULL.
+  
+  Таким образом, если в некоторой колонке column есть пропуски, 
+  выражения COUNT(*) и COUNT(column) вернут разные значения.
+  */
+select
+  count(*) as dates,
+  count(birth_date) as dates_not_null
+from
+  users;
+--5.5
+select
+  count(user_id) as users,
+  count(DISTINCT user_id) as unique_users
+from
+  user_actions;
+--5.6
+select
+  count(DISTINCT courier_id) as couriers
+from
+  couriers
+where
+  sex = 'female';
+--5.7
+select
+  min(time) as first_delivery,
+  max(time) as last_delivery
+from
+  courier_actions
+where
+  action = 'deliver_order';
+--5.8
+select
+  SUM(price) as order_price
+from
+  products
+where
+  name IN ('сухарики', 'чипсы', 'энергетический напиток');
+--select * from orders limit 20
+  --5.9
+  /*
+   _______
+  | 1 | 2 |
+  | 3 | 4 |
+  | 5 | 6 |
+   ‾‾‾‾‾‾‾
+   В этой таблице 3 строки и 2 столбца, 
+   поэтому её можно описать в виде следующего списка из трёх вложенных в него списков:
+   ARRAY[[1,2], [3,4], [5,6]]
+   В примере выше количество списков внутри основного списка — это количество строк в таблице, а количество элементов внутри каждого внутреннего списка — это количество столбцов.
+  
+  Обратите внимание на результат вычислений функции array_length для первой и второй размерностей:
+  SELECT array_length(ARRAY[[1,2], [3,4], [5,6]], 1)
+  
+  Результат:
+  3
+  
+  SELECT array_length(ARRAY[[1,2], [3,4], [5,6]], 2)
+  
+  Результат:
+  2
+  
+  Разумеется, в качестве аргумента функции array_length на месте массива
+  можно указывать имя колонки, которая содержит массивы:
+  SELECT array_length(column, 1)
+  FROM table
+  */
+SELECT
+  count(order_id) as orders
+FROM
+  orders
+WHERE
+  array_length(product_ids, 1) >= 9;
+--5.10
+  /*В качестве аргумента агрегирующих функций могут выступать не только столбцы, 
+  но также расчётные колонки или результат другой функции*/
+select
+  AGE(current_date, max(birth_date)) :: varchar as min_age
+from
+  couriers
+where
+  birth_date is not null
+  and sex = 'male';
+  /*
+  SELECT min(age(birth_date))::varchar as min_age
+  FROM   couriers
+  WHERE  sex = 'male'
+  */
+  --5.11
+select
+  SUM(
+    case
+      when name = 'сухарики' then 3 * price
+      when name = 'чипсы' then 2 * price
+      else price
+    end
+  ) as order_price
+from
+  products
+where
+  name IN ('сухарики', 'чипсы', 'энергетический напиток');
+  
+/*
+SELECT sum(case when name = 'сухарики' then price * 3
+                when name = 'чипсы' then price * 2
+                when name = 'энергетический напиток' then price
+                else 0 end) as order_price
+FROM   products
+*/
+
+--5.12
+select round(avg(price), 2) as avg_price
+from products
+where (name LIKE '%чай%' or name LIKE '%кофе%') 
+    and name NOT LIKE '%иван-чай%' and name NOT LIKE '%чайный гриб%';
+    
+--5.13 
+/* НЕВЕРНО
+select (max(AGE(current_date, birth_date)) - min(AGE(current_date, birth_date)))::varchar as age_diff
+from users
+where sex='male';*/
+
+select AGE(max(birth_date), min(birth_date))::varchar as age_diff
+from users
+where sex='male';
+
+--5.14
+select round(avg(array_length(product_ids, 1)),2) as avg_order_size
+from orders
+where DATE_PART('dow', creation_time) IN (6, 0);
+
+--5.15
+/*Важно: чтобы получить корректный результат деления, необходимо хотя бы одно
+из значений предварительно привести к типу DECIMAL.
+Иначе результатом деления целого числа на другое целое число будет тоже целое число.*/
+--unique_users, unique_orders, orders_per_user
+select  count(DISTINCT user_id) as unique_users, count(DISTINCT order_id) as unique_orders, round(count(DISTINCT order_id)::DECIMAL/count(DISTINCT user_id),2) as orders_per_user
+from user_actions;
+
+--5.16
+--Посчитайте, сколько пользователей никогда не отменяли свой заказ. 
+SELECT 
+    COUNT(DISTINCT user_id) - 
+    (COUNT(DISTINCT user_id) FILTER (WHERE action='cancel_order'))
+    AS users_count
+from user_actions;
+
+--5.17
+SELECT 
+    count(order_id) as orders,
+    count(order_id) FILTER (where array_length(product_ids, 1) >=5) as large_orders,
+    round((count(order_id) FILTER (where array_length(product_ids, 1) >=5))::DECIMAL / count(order_id), 2) as large_orders_share
+FROM orders;
