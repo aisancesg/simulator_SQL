@@ -1,0 +1,123 @@
+--3.6
+select name, LENGTH(name) as name_length, price
+from products
+order by name_length desc
+limit 1
+
+--3.7
+select
+  name,
+  UPPER(SPLIT_PART(name, ' ', 1)) as first_word,
+  price
+from
+  products
+order by
+  name;
+--3.8
+select
+  name,
+  price,
+  CAST(price AS varchar) as price_char
+from
+  products
+order by
+  name;
+--3.9
+  --SELECT DATE(time)
+  --SELECT CAST(time AS DATE)
+  --SELECT time::DATE
+select
+  CONCAT(
+    'Заказ № ',
+    order_id,
+    ' создан ',
+    CAST(creation_time as DATE)
+  ) as order_info
+from
+  orders
+limit
+  200;
+--3.10
+select
+  courier_id,
+  DATE_PART('year', birth_date) as birth_year
+from
+  couriers
+order by
+  birth_year desc,
+  courier_id;
+--3.11
+  --Не забудьте учесть, что unknown — значение типа VARCHAR, а значит,
+  --извлечённый из даты год нужно тоже привести к этому типу.
+  --Поэтому сначала извлеките год, затем преобразуйте его в текст
+  --и далее применяйте к полученному значению функцию COALESCE.
+select
+  courier_id,
+  COALESCE(
+    DATE_PART('year', birth_date) :: VARCHAR,
+    'unknown'
+  ) as birth_year
+from
+  couriers
+order by
+  birth_year desc,
+  courier_id;
+--3.12
+select
+  product_id,
+  name,
+  price as old_price,
+  price * 1.05 as new_price
+from
+  products
+order by
+  new_price desc,
+  product_id;
+--3.13
+select
+  product_id,
+  name,
+  price as old_price,
+  round(price * 1.05, 1) as new_price
+from
+  products
+order by
+  new_price desc,
+  product_id;
+--3.14
+  /*CASE  
+  WHEN logical_expression_1 THEN expression_1
+  WHEN logical_expression_2 THEN expression_2
+  ...
+  ELSE expression_else
+  END AS case_example*/
+select
+  product_id,
+  name,
+  price as old_price,
+  CASE
+  WHEN (price>100 and name!='икра') THEN price*1.05
+  ELSE price*1
+  END as new_price
+from
+  products
+order by
+  new_price desc,
+  product_id;
+ 
+/*
+SELECT product_id,
+       name,
+       price as old_price,
+       case when price <= 100 or
+                 name = 'икра' then price
+            when price > 100 then price*1.05
+            else 0 end new_price
+FROM   products
+ORDER BY new_price desc, product_id */
+
+--3.15
+--price_before_tax это x, price это 1.2*x
+SELECT product_id, name, price, round(price/6, 2) as tax, round(price/1.2, 2) as price_before_tax
+FROM products
+order by price_before_tax desc, product_id;
