@@ -1,0 +1,396 @@
+--8.N - 8ой урок, N-ый шаг практики
+--8.2
+SELECT 
+    u_a.user_id AS user_id_left,
+    users.user_id AS user_id_right,
+    order_id,
+    time, 
+    action,
+    sex,
+    birth_date
+FROM 
+    user_actions AS u_a
+    INNER JOIN users
+    ON u_a.user_id=users.user_id
+ORDER BY user_id_left;
+
+--8.3
+SELECT 
+    COUNT( DISTINCT users.user_id) AS users_count
+FROM 
+    user_actions as u_a
+    INNER JOIN users
+    ON u_a.user_id=users.user_id;
+--20331
+
+-- SELECT COUNT(DISTINCT user_id) FROM users;
+--20331
+
+--SELECT COUNT(DISTINCT user_id) FROM user_actions;
+--21401
+
+--8.4
+SELECT 
+    u_a.user_id AS user_id_left,
+    users.user_id AS user_id_right,
+    order_id,
+    time, 
+    action,
+    sex,
+    birth_date
+FROM 
+    user_actions AS u_a
+    LEFT JOIN users
+    ON u_a.user_id=users.user_id
+ORDER BY user_id_left;
+
+--8.5
+SELECT 
+    COUNT(DISTINCT u_a.user_id) AS users_count
+FROM 
+    user_actions AS u_a
+    LEFT JOIN users
+    ON u_a.user_id=users.user_id;
+--21401
+
+--8.6
+SELECT 
+    u_a.user_id AS user_id_left,
+    users.user_id AS user_id_right,
+    order_id,
+    time, 
+    action,
+    sex,
+    birth_date
+FROM 
+    user_actions AS u_a
+    LEFT JOIN users
+    ON u_a.user_id=users.user_id
+WHERE users.user_id IS NOT NULL
+ORDER BY user_id_left;
+
+--8.7
+SELECT 
+    t1.birth_date AS users_birth_date, 
+    users_count,
+    t2.birth_date AS couriers_birth_date,
+    couriers_count
+FROM (
+    SELECT birth_date, COUNT(user_id) AS users_count
+    FROM users
+    WHERE birth_date IS NOT NULL
+    GROUP BY birth_date
+    ) AS t1
+    FULL JOIN (
+    SELECT birth_date, COUNT(courier_id) AS couriers_count
+    FROM couriers
+    WHERE birth_date IS NOT NULL
+    GROUP BY birth_date
+    ) AS t2
+    USING (birth_date)
+ORDER BY 1, 3;
+--4846 строк
+
+--8.8
+SELECT COUNT(*) AS dates_count
+FROM (
+    SELECT birth_date
+    FROM users
+    WHERE birth_date IS NOT NULL
+    
+    UNION
+    
+    SELECT birth_date
+    FROM couriers
+    WHERE birth_date IS NOT NULL
+    ) AS t;
+
+--8.9
+SELECT user_id, name 
+FROM 
+    (SELECT user_id
+    FROM users
+    LIMIT 100) as t
+    CROSS JOIN 
+    products
+ORDER BY 1, 2;
+
+--8.10
+SELECT user_actions.user_id,
+       user_actions.order_id,
+       orders.product_ids
+FROM   user_actions
+    LEFT JOIN orders using (order_id)
+ORDER BY 1, 2 limit 1000;
+
+--8.11
+SELECT user_actions.user_id,
+       user_actions.order_id,
+       orders.product_ids
+FROM   user_actions
+    LEFT JOIN orders using (order_id)
+WHERE  user_actions.order_id not in (SELECT order_id
+                                     FROM   user_actions
+                                     WHERE  action = 'cancel_order')
+ORDER BY 1, 2 limit 1000;
+
+--Вариант верного решения
+/*Рекомендуется делать фильтрацию до объединения, так как в таком случае 
+вы заранее уменьшаете количество строк в одной из таблиц и тем самым ускоряете процесс объединения. 
+Однако для этого потребуется написать вложенный запрос.*/
+SELECT user_id,
+       order_id,
+       product_ids
+FROM   (SELECT user_id,
+               order_id
+        FROM   user_actions
+        WHERE  order_id not in (SELECT order_id
+                                FROM   user_actions
+                                WHERE  action = 'cancel_order')) t
+    LEFT JOIN orders using(order_id)
+ORDER BY user_id, order_id limit 1000;
+
+--8.12 для каждого пользователя посчитать среднее количество товаров в заказе.
+SELECT t.user_id,
+       round(AVG(array_length(orders.product_ids, 1)), 2) AS avg_order_size
+FROM (
+    SELECT user_id, order_id
+    FROM   user_actions
+    WHERE  order_id not in (SELECT order_id
+                            FROM   user_actions
+                            WHERE  action = 'cancel_order')
+    ) t
+    LEFT JOIN orders 
+    ON t.order_id=orders.order_id
+GROUP BY user_id
+ORDER BY user_id
+LIMIT 1000;
+
+--8.13
+SELECT unnest_orders.order_id,
+       unnest_orders.product_id,
+       products.price
+FROM   
+    (SELECT order_id,
+               unnest(product_ids) as product_id
+        FROM   orders) as unnest_orders
+    LEFT JOIN products using (product_id)
+ORDER BY 1, 2 limit 1000;
+
+--8.14
+SELECT unnest_orders.order_id, SUM(products.price) as order_price
+FROM (
+    SELECT order_id, unnest(product_ids) as product_id
+    FROM orders
+    ) as unnest_orders
+    LEFT JOIN
+    products
+    USING (product_id)
+GROUP BY 1
+ORDER BY 1
+LIMIT 1000;
+
+--8.15
+/*для каждого пользователя рассчитайте следующие показатели:
+
+общее число заказов — колонку назовите orders_count
+среднее количество товаров в заказе — avg_order_size
+суммарную стоимость всех покупок — sum_order_value
+среднюю стоимость заказа — avg_order_value
+минимальную стоимость заказа — min_order_value
+максимальную стоимость заказа — max_order_value */
+
+SELECT 
+    user_id,
+    COUNT(user_id_order_id.order_id) AS orders_count,
+    ROUND(AVG(order_size),2) AS avg_order_size,
+    ROUND(SUM(order_price),2) AS sum_order_value,
+    ROUND(AVG(order_price),2) AS avg_order_value,
+    ROUND(MIN(order_price),2) AS min_order_value,
+    ROUND(MAX(order_price),2) AS max_order_value
+FROM 
+    (SELECT 
+        unnest_orders.order_id,
+        array_length(product_ids, 1) as order_size,
+        SUM(products.price) as order_price
+    FROM (
+        SELECT order_id, product_ids, unnest(product_ids) as product_id
+        FROM orders
+        ) as unnest_orders
+        LEFT JOIN
+        products
+        USING (product_id)
+    GROUP BY 1, unnest_orders.product_ids
+    ) AS order_id_size_price
+    LEFT JOIN
+    (SELECT user_id, order_id
+        FROM   user_actions
+        WHERE  order_id not in (SELECT order_id
+                                FROM   user_actions
+                                WHERE  action = 'cancel_order')
+    ) as user_id_order_id
+    USING (order_id)
+GROUP BY 1
+ORDER BY 1
+LIMIT 1000;
+
+--Вариант верного решения
+SELECT user_id,
+       count(order_price) as orders_count,
+       round(avg(order_size), 2) as avg_order_size,
+       sum(order_price) as sum_order_value,
+       round(avg(order_price), 2) as avg_order_value,
+       min(order_price) as min_order_value,
+       max(order_price) as max_order_value
+FROM   
+    (
+        SELECT 
+            user_id, order_id, array_length(product_ids, 1) as order_size
+        FROM   
+            (
+            SELECT user_id, order_id
+            FROM   user_actions
+            WHERE  order_id not in (SELECT order_id FROM user_actions WHERE  action = 'cancel_order')
+            ) t1
+            LEFT JOIN orders 
+            using(order_id)
+    ) t2
+    LEFT JOIN 
+        (
+        SELECT 
+            order_id, sum(price) as order_price
+        FROM   
+            (
+            SELECT  order_id,
+                    product_ids,
+                    unnest(product_ids) as product_id
+            FROM   orders
+            WHERE  order_id not in (SELECT order_id FROM user_actions WHERE  action = 'cancel_order')
+            ) t3
+            LEFT JOIN products 
+            using(product_id)
+        GROUP BY order_id
+        ) t4 
+    using (order_id)
+GROUP BY user_id
+ORDER BY user_id 
+limit 1000;
+
+--8.16
+SELECT name, count(*) as times_purchased
+FROM  
+    (
+        SELECT order_id
+        FROM courier_actions
+        WHERE action='deliver_order'
+        AND DATE_PART('year',time)=2022 AND DATE_PART('month', time)=9
+    ) as order_id_september
+     JOIN
+    (
+    --Если товар встречается в одном заказе несколько раз (было куплено несколько единиц товара), 
+    --то при подсчёте учитываем только одну единицу товара. => DISTINCT
+        SELECT DISTINCT order_id, unnest(product_ids) as product_id
+        FROM orders
+    ) as unnested_orders
+    USING (order_id)
+    LEFT JOIN 
+        products
+    USING (product_id)
+GROUP BY name
+ORDER BY 2 desc 
+limit 10;
+
+--Другой вариант 
+SELECT name,
+       count(product_id) as times_purchased
+FROM 
+    (
+        SELECT order_id, product_id, name
+        FROM   
+        (
+            SELECT DISTINCT order_id, unnest(product_ids) as product_id
+            FROM   orders 
+                LEFT JOIN courier_actions 
+                USING (order_id)
+            WHERE  action = 'deliver_order'
+               and date_part('month', time) = 9
+               and date_part('year', time) = 2022
+        ) t1
+        LEFT JOIN products 
+        using (product_id)
+    ) t2
+GROUP BY name
+ORDER BY times_purchased desc limit 10;
+
+--8.17 среднее значение cancel_rate для каждого пола
+SELECT COALESCE(sex, 'unknown'), round(avg(cancel_rate), 3) as avg_cancel_rate
+FROM 
+(
+    SELECT 
+        user_id,
+        count(order_id) filter (WHERE action = 'create_order') as orders_count,
+        round((count(order_id) filter (WHERE action = 'cancel_order'))::decimal / (count(order_id) filter (WHERE action = 'create_order')),
+             2) as cancel_rate
+    FROM   user_actions
+    GROUP BY user_id
+) as user_cancel_rate
+LEFT JOIN 
+users
+USING (user_id)
+GROUP BY sex
+ORDER BY sex;
+
+--8.18
+SELECT orders.order_id  
+FROM 
+    orders
+    LEFT JOIN
+    courier_actions
+    ON orders.order_id=courier_actions.order_id
+WHERE courier_actions.action='deliver_order'
+ORDER BY courier_actions.time - orders.creation_time DESC
+LIMIT 10;
+
+--8.19 вместо массива id-шников продуктов сделать массив наименований продуктов
+SELECT order_id, array_agg(name) as product_names
+FROM 
+    (
+        SELECT order_id, unnest(product_ids) as product_id
+        FROM orders
+    ) as unnested_orders
+    LEFT JOIN
+    products
+    USING (product_id)
+GROUP BY order_id
+LIMIT 1000;
+
+--8.20 кто заказывал и доставлял самые большие заказы. 
+--Самыми большими считайте заказы с наибольшим числом товаров.
+
+SELECT 
+    DISTINCT
+    t1.order_id,
+    t1.user_id,
+    DATE_PART('year', AGE((SELECT MAX(time) FROM user_actions), users.birth_date))::INTEGER AS user_age,
+    courier_actions.courier_id,
+    DATE_PART('year', AGE((SELECT MAX(time) FROM user_actions), couriers.birth_date))::INTEGER AS courier_age
+FROM 
+    (
+        SELECT user_id, order_id
+        FROM   user_actions
+        WHERE  order_id not in (SELECT order_id FROM user_actions WHERE  action = 'cancel_order')
+    ) AS t1
+    INNER JOIN
+    (
+        SELECT order_id
+        FROM orders
+        WHERE array_length(product_ids, 1)=(SELECT MAX(array_length(product_ids, 1)) FROM orders)
+    ) AS id_max_orders
+    USING(order_id)
+    LEFT JOIN users
+    USING(user_id)
+    LEFT JOIN courier_actions
+    USING(order_id)
+    LEFT JOIN couriers
+    USING(courier_id)
+ORDER BY 1;
