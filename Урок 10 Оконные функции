@@ -1,0 +1,135 @@
+--10.2
+SELECT 
+    product_id, 
+    name,
+    price,
+    ROW_NUMBER() OVER (ORDER BY price desc) as product_number,
+    RANK() OVER (ORDER BY price desc) as product_rank,
+    DENSE_RANK() OVER (ORDER BY price desc) as product_dense_rank
+FROM products;
+
+--10.3
+SELECT 
+    product_id,
+    name,
+    price,
+    MAX(price) OVER () as max_price,
+    ROUND(price::decimal / MAX(price) OVER (), 2) as share_of_max
+FROM products
+ORDER BY price desc, product_id;
+
+--10.4
+SELECT 
+    product_id,
+    name,
+    price,
+    MAX(price) OVER (ORDER BY price desc) as max_price,
+    MIN(price) OVER (ORDER BY price desc) as min_price
+FROM products
+ORDER BY price desc, product_id;
+
+--10.5
+/*
+Обратите внимание, что в PostgreSQL оконные функции в качестве результата 
+возвращают значение типа DECIMAL несмотря на то, 
+что исходное значение находится в формате INTEGER. */
+
+SELECT 
+    date, 
+    orders_count, 
+    (SUM(orders_count) OVER (ORDER BY date))::INTEGER as orders_cum_count
+FROM (
+    SELECT creation_time::DATE as date, count(order_id) as orders_count
+    FROM 
+        orders 
+        INNER JOIN 
+        (
+            SELECT order_id
+            FROM user_actions
+            WHERE order_id NOT IN 
+                (SELECT order_id FROM user_actions WHERE action='cancel_order')
+        ) as t
+        USING (order_id)
+    GROUP BY creation_time::DATE
+    ) as by_date_count;
+
+--10.6
+--Для каждого пользователя в таблице user_actions посчитайте 
+--порядковый номер каждого заказа. Отменённые заказы не учитывайте
+SELECT 
+    user_id, order_id, time,
+    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY time) as order_number
+FROM user_actions
+WHERE order_id NOT IN (SELECT order_id FROM user_actions WHERE action='cancel_order')
+ORDER BY user_id, order_number
+LIMIT 1000;
+ 
+--10.7 для каждого заказа каждого пользователя рассчитайте, 
+--сколько времени прошло с момента предыдущего заказа. 
+/*
+SELECT LAG(column, 1) OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE BETWEEN ...) AS lag_value
+FROM table
+
+SELECT LEAD(column, 1) OVER (PARTITION BY ... ORDER BY ... ROWS/RANGE BETWEEN ...) AS lead_value
+FROM table
+
+Avatar
+Айса Сангаджи-Гаряеваcreated 2 days ago
+
+В качестве первого аргумента у функций LAG и LEAD указывается колонка со значениями, 
+в качестве второго — то, на какое число строк производить смещение (назад и вперёд соответственно). 
+Второй аргумент можно не указывать, по умолчанию его значение равно 1.
+*/
+SELECT 
+    user_id, order_id, time,
+    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY time) as order_number,
+    LAG(time, 1) OVER (PARTITION BY user_id ORDER BY time) as time_lag,
+    time -  LAG(time, 1) OVER (PARTITION BY user_id ORDER BY time) as time_diff
+FROM user_actions
+WHERE order_id NOT IN (SELECT order_id FROM user_actions WHERE action='cancel_order')
+ORDER BY user_id, order_number
+LIMIT 1000;
+
+--10.8 для каждого пользователя рассчитайте, сколько в среднем времени проходит между его заказами. Посчитайте этот показатель только для тех пользователей, которые за всё время оформили более одного заказа.
+--Среднее время между заказами выразите в часах, округлив значения до целого числа.
+SELECT 
+    DISTINCT
+    user_id, 
+    ROUND(AVG(time_diff)::DECIMAL,0)::INTEGER as hours_between_orders
+FROM 
+    (
+    SELECT 
+        user_id, 
+        time,
+        LAG(time, 1) OVER (PARTITION BY user_id ORDER BY time) as time_lag,
+        EXTRACT(epoch from (time - LAG(time, 1) OVER (PARTITION BY user_id ORDER BY time)))/3600 as time_diff,
+        COUNT(order_id) OVER (PARTITION BY user_id) as orders_count
+    FROM user_actions 
+    WHERE order_id NOT IN (SELECT order_id FROM user_actions WHERE action='cancel_order')
+    ) AS t
+WHERE orders_count > 1
+GROUP BY user_id
+ORDER BY user_id
+LIMIT 1000;
+
+--10.9 скользящее среднее
+SELECT 
+    date, 
+    orders_count, 
+    ROUND(AVG(orders_count) OVER (ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING),2) AS moving_avg
+FROM (
+    SELECT creation_time::DATE as date, count(order_id) as orders_count
+    FROM 
+        orders 
+        INNER JOIN 
+        (
+            SELECT order_id
+            FROM user_actions
+            WHERE order_id NOT IN 
+                (SELECT order_id FROM user_actions WHERE action='cancel_order')
+        ) as t
+        USING (order_id)
+    GROUP BY creation_time::DATE
+    ORDER BY 1
+    ) as by_date_count;
+    
