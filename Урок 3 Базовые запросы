@@ -1,3 +1,29 @@
+--3.1
+SELECT *
+FROM   products
+
+--3.2
+SELECT *
+FROM   products
+ORDER BY name   
+
+--3.3
+SELECT *
+FROM   courier_actions
+ORDER BY courier_id asc, action asc, time desc limit 1000
+
+--3.4
+SELECT name,
+       price
+FROM   products
+ORDER BY price desc limit 5
+
+--3.5
+SELECT name as product_name,
+       price as product_price
+FROM   products
+ORDER BY price desc limit 5
+
 --3.6
 select name, LENGTH(name) as name_length, price
 from products
@@ -13,6 +39,7 @@ from
   products
 order by
   name;
+
 --3.8
 select
   name,
@@ -22,6 +49,7 @@ from
   products
 order by
   name;
+
 --3.9
   --SELECT DATE(time)
   --SELECT CAST(time AS DATE)
@@ -37,6 +65,7 @@ from
   orders
 limit
   200;
+
 --3.10
 select
   courier_id,
@@ -46,6 +75,7 @@ from
 order by
   birth_year desc,
   courier_id;
+
 --3.11
   --Не забудьте учесть, что unknown — значение типа VARCHAR, а значит,
   --извлечённый из даты год нужно тоже привести к этому типу.
@@ -62,6 +92,7 @@ from
 order by
   birth_year desc,
   courier_id;
+
 --3.12
 select
   product_id,
@@ -73,6 +104,7 @@ from
 order by
   new_price desc,
   product_id;
+
 --3.13
 select
   product_id,
@@ -84,6 +116,7 @@ from
 order by
   new_price desc,
   product_id;
+
 --3.14
   /*CASE  
   WHEN logical_expression_1 THEN expression_1
