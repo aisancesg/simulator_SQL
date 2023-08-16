@@ -1,0 +1,202 @@
+--6.1
+SELECT sex, COUNT(courier_id) AS couriers_count
+FROM couriers
+GROUP BY sex
+ORDER BY couriers_count;
+
+--6.2
+SELECT action, COUNT(order_id)  AS orders_count
+FROM user_actions
+GROUP BY action
+ORDER BY 2;
+
+--6.3
+/* сгруппируем наши данные не по имеющейся в таблице колонке, а по расчётной.
+Чтобы понять, как это работает, просто представьте, что сначала 
+вы создаёте какую-то новую колонку на основе уже имеющейся, применяя к ней какую-то функцию,  
+а потом сразу в этом же запросе производите группировку по новой колонке.*/
+SELECT DATE_TRUNC('month', creation_time) AS month, COUNT(order_id) AS orders_count
+FROM orders
+GROUP BY 1
+ORDER BY 1;
+
+--6.4
+SELECT DATE_TRUNC('month', time) AS month, action, COUNT(order_id) as orders_count
+FROM user_actions
+GROUP BY 1, 2
+ORDER BY 1, 2;
+
+--6.5  максимальный порядковый номер месяца среди всех порядковых номеров месяцев рождения пользователей сервиса
+SELECT sex, MAX(DATE_PART('month', birth_date))::INTEGER as max_month
+FROM users
+GROUP BY sex
+ORDER BY sex;
+
+--6.6 порядковый номер месяца рождения самого молодого пользователя сервиса
+SELECT sex, DATE_PART('month', MAX(birth_date))::INTEGER AS max_month
+FROM users
+GROUP BY sex
+ORDER BY sex;
+
+--6.7 максимальный возраст пользователей мужского и женского пола в таблице users. 
+--Возраст измерьте числом полных лет
+SELECT sex, DATE_PART('year', AGE(current_date, MIN(birth_date)))::INTEGER AS max_age
+FROM users
+GROUP BY sex;
+
+--6.8 сколько клиентов определённого возраста пользуются нашим сервисом
+SELECT DATE_PART('year', AGE(birth_date))::INTEGER AS age, COUNT(user_id) AS users_count
+FROM users
+GROUP BY age 
+ORDER BY age;
+
+--6.9
+SELECT 
+    DATE_PART('year', AGE(birth_date))::INTEGER AS age, 
+    sex, 
+    COUNT(user_id) AS users_count
+FROM users
+WHERE birth_date IS NOT NULL
+GROUP BY age, sex
+ORDER BY age, sex;
+
+--6.10 для каждого размера заказа, который встречается в данных, посчитаем общее число заказов такого размера.
+select array_length(product_ids, 1) as order_size, count(order_id) as orders_count
+from orders
+where creation_time BETWEEN '2022-08-29' and '2022-09-04 23:59:59'
+group by 1
+order by 1;
+
+--6.11
+select array_length(product_ids, 1) as order_size, count(order_id) as orders_count
+from orders
+where DATE_PART('dow', creation_time) in (1, 2, 3, 4, 5)
+group by 1
+having count(order_id) > 2000
+order by 1;
+
+/*
+SELECT array_length(product_ids, 1) as order_size,
+       count(order_id) as orders_count
+FROM   orders
+WHERE  to_char(creation_time, 'Dy') not in ('Sat', 'Sun')
+GROUP BY order_size having count(order_id) > 2000
+ORDER BY order_size
+*/
+
+--6.12 определите пять пользователей, сделавших в августе 2022 года наибольшее количество заказов
+select user_id, count(order_id) as created_orders
+from user_actions
+where DATE_TRUNC('month', time)=timestamp '2022-08-01' and action='create_order'
+group by user_id
+order by 2 desc, 1
+limit 5;
+
+--6.13
+select courier_id
+from courier_actions
+where DATE_TRUNC('month', time)=timestamp '2022-09-01' and action='deliver_order'
+group by courier_id
+having count(order_id)=1
+order by courier_id;
+
+--select * from courier_actions;
+/*
+SELECT courier_id
+FROM   courier_actions
+WHERE  action = 'deliver_order'
+   and date_part('month', time) = 9
+   and date_part('year', time) = 2022
+GROUP BY courier_id having count(distinct order_id) = 1
+ORDER BY courier_id
+*/
+
+--6.14
+select user_id
+from user_actions
+where action='create_order'
+group by user_id
+having max(time) < '2022-09-08'
+order by user_id;
+
+--6.15
+/* мы можем дополнительно управлять группировкой наших данных
+— сначала мы сами задаём правила, по которым определяем принадлежность записей к некоторым категориям,
+а затем группируем по ним данные и проводим необходимые расчёты.
+
+SELECT name,
+       CASE 
+       WHEN name='свинина' OR name='баранина' OR name='курица' THEN 'мясо'
+       WHEN name='треска' OR name='форель' OR name='окунь' THEN 'рыба'
+       ELSE 'другое'
+       END AS сategory,
+       AVG(price) AS average_price
+FROM table
+GROUP BY сategory
+*/
+select 
+    case 
+    when date_part('dow', creation_time) in (6, 0) then 'weekend'
+    else 'weekdays'
+    end as week_part,
+    round(AVG(array_length(product_ids, 1)), 2) as avg_order_size
+from orders
+group by week_part
+order by avg_order_size;
+-- можно when to_char(creation_time, 'Dy') in ('Sat', 'Sun')
+
+--6.16 Посчитайте число пользователей, попавших в каждую возрастную группу.
+select
+    case
+    when date_part('year', age(current_date, birth_date))::integer between 19 and 24 then '19-24'
+    when date_part('year', age(current_date, birth_date))::integer between 25 and 29 then '25-29'
+    when date_part('year', age(current_date, birth_date))::integer between 30 and 35 then '30-35'
+    else '36-41'
+    end as group_age,
+    count(user_id) as users_count
+from users
+where date_part('year', age(current_date, birth_date))::integer between 19 and 41
+group by group_age
+order by group_age;
+    
+/*
+SELECT case when date_part('year', age(birth_date)) between 19 and
+                 24 then '19-24'
+            when date_part('year', age(birth_date)) between 25 and
+                 29 then '25-29'
+            when date_part('year', age(birth_date)) between 30 and
+                 35 then '30-35'
+            when date_part('year', age(birth_date)) between 36 and
+                 41 then '36-41' end as group_age,
+       count(user_id) as users_count
+FROM   users
+WHERE  birth_date is not null
+GROUP BY group_age
+ORDER BY group_age
+*/
+
+--6.17 определим пользователей, которые чаще остальных отменяли заказы.
+select 
+    user_id, 
+    count(order_id) filter (where action='create_order') as orders_count, 
+    round((count(order_id) filter (where action='cancel_order'))::decimal / (count(order_id) filter (where action='create_order')), 2) as cancel_rate
+from user_actions
+group by user_id
+having (count(order_id) filter (where action='create_order')) > 3 and (count(order_id) filter (where action='cancel_order'))::decimal / (count(order_id) filter (where action='create_order')) >= 0.5
+order by user_id;
+
+--6.18 выяснить, отличается ли success rate (доля неотменённых заказов) в разные дни недели
+--select date_part('isodow', timestamp '2023-07-17')
+select 
+    date_part('isodow', time)::integer as weekday_number,
+    to_char(time, 'Dy') as weekday,
+    count(order_id) filter (where action='create_order') as created_orders,
+    count(order_id) filter (where action='cancel_order') as canceled_orders,
+    count(order_id) filter (where action='create_order')-count(order_id) filter (where action='cancel_order') as actual_orders, 
+    round((count(order_id) filter (where action='create_order')-count(order_id) filter (where action='cancel_order')) :: decimal / count(order_id) filter (where action='create_order'), 3) as success_rate
+from user_actions
+where time >='2022-08-24' and time < '2022-09-07'
+group by 1, 2 
+order by 1;
+
+--select * from user_actions where action!='create_order' and action!='cancel_order' order by action desc limit 100;
